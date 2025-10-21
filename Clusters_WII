@@ -1,0 +1,37 @@
+# The next code can be use to reproduce the tables and figures of the article: 
+# "Clusters of circadian rhythm derived from accelerometer-based rest-activity rhythm, chronotype, daytime activity, and sleep in 2 cohort studies" for the cohort Whitehall II.
+# We provide a code for which we already have the data about metrics and covariates ready. For some of the covariates we do some mananging to provide the good format in the analyses.
+
+# Libraries
+# If you do not have the librairy, do: install.packages("name_package_for_library")
+library(haven)
+library(corrplot)
+library(tidyverse)
+library(nnet)
+library(questionr)
+library(factoextra)
+library(compareC)
+library(cluster)
+library(clusterSim)
+
+
+#####################
+### Main analyses ###
+#####################
+
+
+### Figure 1. Correlation matrix of 36 metrics reflecting circadian rhythm dimensions (rest-activity rhythm, daytime activity, sleep, and chronotype) ###
+
+# Loading the data with the 36 metrics and the factors needed
+Data <- read_dta("~/Coupure 180625/Final dataset2 250819 mort.dta")
+Data_F1 <- Data[, 70:105] # selection of metrics needed
+colnames(Data_F1) <- c("SB duration", "Number of SB bouts", "Mean duration of SB bouts", "TPar,d", "LIPA duration", "MVPA duration", "Number of LIPA bouts", "Number of MVPA bouts", "Mean duration of LIPA bouts", "Mean duration of MVPA bouts", "TPra,d", "M10 mean acceleration", "Acceleration during waking", "IG intercept", "IG slope",
+                       "Relative amplitude", "Cosinor mesor", "Cosinor amplitude", "Cosinor R²", "IS", "IV",
+                       "Sleep onset", "Waking time", "M10 start", "L5 start", "Cosinor acrotime",
+                       "Sleep duration", "Sleep efficiency", "Mean duration of sleep bouts", "TPws,n", "Mean acceleration during sleep", "Number of sleep bouts", "L5 mean acceleration", "TPsw,n", "WASO", "Mean duration of wake bouts")
+corrplot(cor(Data_F1[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), 
+         type = "lower",                                                   # To get the figure at bottom left (can be 'full' or 'upper')
+         method = "square",                                                # To get the form square inside boxes (can be 'circle' or other)
+         tl.pos = "l", 
+         tl.col = "black", 
+         tl.cex = 0.7)                                                     # To remove the names on the diagonal
