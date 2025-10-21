@@ -1,5 +1,5 @@
 # The next code can be use to reproduce the tables and figures of the article: 
-# "Clusters of circadian rhythm derived from accelerometer-based rest-activity rhythm, chronotype, daytime activity, and sleep in 2 cohort studies" for the cohort Whitehall II.
+# "Circadian rhythm profiles derived from accelerometer measures of the sleep-wake cycle in 2 cohort studies"
 # We provide a code for which we already have the data about metrics and covariates ready. For some of the covariates we do some mananging to provide the good format in the analyses.
 
 # Libraries
