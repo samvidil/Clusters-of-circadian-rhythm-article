@@ -1,6 +1,4 @@
-
-
-
+# Code to extract data from raw accelerometer data using GGIR package
 
 rm(list = ls())
 
