@@ -1,3 +1,4 @@
+
 # The next code can be use to reproduce the tables and figures of the article: 
 # "Circadian rhythm profiles derived from accelerometer measures of the sleep-wake cycle in 2 cohort studies"
 # We provide a code for which we already have the data about metrics and covariates ready. For some of the covariates we do some mananging to provide the good format in the analyses.
@@ -28,27 +29,28 @@ library(clusterSim)
 ### Figure 1: Correlation matrix of 36 metrics reflecting circadian rhythm dimensions (rest-activity rhythm, daytime activity, sleep, and chronotype) ###
 
 # Loading the data with the 36 metrics and the factors needed
-Data <- read_dta("~/Coupure 180625/data_final_ukbb_250901.dta")
-Data_F1 <- Data[, 141:176] # selection of metrics needed
-corrplot(cor(Data_F1[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), 
+Data <- read.csv("path/name.csv")
+Data <- Data[, -1] # Specific to our dataset
+corrplot(cor(Data[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), 
          type = "lower",                                                   # To get the figure at bottom left (can be 'full' or 'upper')
          method = "square",                                                # To get the form square inside boxes (can be 'circle' or other)
-         tl.pos = "l")                                                     # To remove the names on the diagonal
+         tl.pos = "l", 
+         tl.col = "black", 
+         tl.cex = 0.7)                                                     # To remove the names on the diagonal
 
 # To save the plot
-svg("~/Coupure 180625/corr_UKBB.svg")
-corrplot(cor(Data_F1[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), type = "lower", method = "square", tl.pos = "l", tl.col = "black", tl.cex = 0.7) 
+svg("path/name.svg")
+corrplot(cor(Data[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), type = "lower", method = "square", tl.pos = "l", tl.col = "black", tl.cex = 0.7) 
 dev.off()
 
 
 ### Figure 3: Standardized mean scores on 36 metrics as a function of nine circadian rhythm clusters in the UK Biobank accelerometer sub-study ###
 
 # Step 1: PCA
-Data_F2 <- Data[, c(141:176)]
 # Standardization
-Data_F2_Z <- scale(Data_F2)
+Data_F3_Z <- scale(Data)
 # PCA
-PCA_results <- prcomp(Data_F2_Z)
+PCA_results <- prcomp(Data_F3_Z)
 data_dimensions <- data.frame(PCA_results$x[, 1:8])
 
 # Step 2: k-means
@@ -64,9 +66,11 @@ for(i in 4:12){
 
 # Visualisation
 # Creation of the variable cluster in the correct order
+Data <- read_dta("path/name.dta")
+Data_F3 <- Data[, 141:176] # selection of metrics needed
 Data$c9_order <- (Data$c9 == 1) + 2*(Data$c9 == 8) + 3*(Data$c9 == 4) + 4*(Data$c9 == 3) + 5*(Data$c9 == 6) + 6*(Data$c9 == 2) + 7*(Data$c9 == 7) + 8*(Data$c9 == 9) + 9*(Data$c9 == 5)
 
-T9 <- data.frame(scale(Data_F1), c9 = Data$c9_order) %>%
+T9 <- data.frame(scale(Data_F3), c9 = Data$c9_order) %>%
   group_by(c9) %>%
   summarise_all(funs(mean))
 T9_longer <- T9 %>% pivot_longer(!c9, names_to = "Metrics", values_to = "Z_score")
@@ -358,7 +362,7 @@ wss[3] <- kmeans(data_dimensions, centers = 3, algorithm = "Lloyd", nstart = 500
 for(k in 4:12){
   wss[k] <- CL[k]$tot.withinss
 }
-plot(1:12, wss, xlab = expression(italic(k)), ylab = expression(italic(WCSS)), type = "b", lwd = 2)
+plot(1:12, wss, xlab = expression(k), ylab = expression(WCSS), type = "b", lwd = 2)
 
 
 # Silhouette coefficient
@@ -392,7 +396,7 @@ axis(1, at = 1:9, labels = 4:12)
 
 ### Figure S7: Illustration of acceleration signals for typical profiles for the nine clusters identified in the UK Biobank accelerometer sub-study ###
 
-load("~/Signals_UKBB/3699348_90001_0_0.cwa.RData")
+load("path/name.RData")
 M9_ukbb <- IMP
 
 # As we have the data in the format with 5 seconds epoch, we calculate the mean per minutes.
@@ -416,7 +420,6 @@ abline(h = 100, lty = 2, col = 'green', lwd = 2)                                
 abline(v = c(seq(826, 10065, by = 1440)), lty = 3, col = "grey", lwd = 1.7)          # Lines for the timing landmarks
 axis(1, c(seq(106, 10065, by = 720)),
      labels = c("", "00:00", "", "00:00", "", "00:00", "", "00:00", "", "00:00", "", "00:00", "", "00:00"), cex.axis = 0.905)
-
 
 
 
