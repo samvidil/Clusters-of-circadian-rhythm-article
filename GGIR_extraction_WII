@@ -1,4 +1,5 @@
-# Generic script for using GGIR in the ERC project
+# Code to extract data from raw accelerometer data using GGIR package
+
 #=====================================================================================
 # rm(list=ls())
 # graphics.off()
