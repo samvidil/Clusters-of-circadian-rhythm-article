@@ -1,0 +1,233 @@
+
+
+
+
+rm(list = ls())
+
+#remotes::install_github("wadpac/GGIR", ref = "azteca")
+library(GGIR)
+local_datadir = "C:\\Users\\i_danilevicz\\Documents\\UKBB\\all_batches_filter06\\Batch_all" 
+local_outputdir = "C:\\Users\\i_danilevicz\\Documents\\UKBB\\all_batches_filter06" # change to path where output will be generated, just like GGIR
+
+
+#loglocation = "C:\\Users\\i_danilevicz\\Documents\\Test\\sleeplog\\sleeplog_part2_v5_UKBB.csv"
+#verisensedir = "/\\172.27.137.244\\UK_BB_run$\\Codes\\verisense_count_steps.R"
+verisensedir = "C:\\Users\\i_danilevicz\\Documents\\UKBB\\Codes\\verisense_count_steps.R"
+# ---------------------------------------------------------------------------- #
+# User's edition 
+user     = "Ian"
+study    = "UKBiobank"
+sib_must_fully_overlap_with_TimeInBed = c(FALSE, FALSE) 
+# ---------------------------------------------------------------------------- #
+
+if (user == "Ian") {
+  mode = c(5:6) # 2:6 Attention!!!!!!!!!!!!!!!!
+  do.parallel = TRUE
+  overwrite =  FALSE
+  f0 = 1
+  f1 = 0
+  do.part2.pdf = FALSE # I changed for visualization
+  do.report = c(2,4:6)
+  part6DFA = FALSE
+  maxNcores = 26 
+}
+if (study == "UKBiobank") {
+  timewindow = "OO"
+  strategy = 1
+  maxdur = 7
+  datadir = local_datadir
+  outputdir = local_outputdir
+  studyname = "UKB" 
+    nonwearFiltermaxHours = 3
+    nonwearFilterWindow = c(0,6) # The algorithm is more permissive with potential non-wear epochs during the window between midnight and 6am
+      #nonwearFilterWindow = c(23.75, 7.167)#NULL 
+      qwindow = c(0,24) #loglocation # Only if you actually have a diary
+      qwindow_dateformat = NULL# "%d/%m/%Y" # to specify the date format in the sleepdiary
+      loglocation = NULL# loglocation
+      coln1 = NULL#5 # after I include the date, there is one more column
+  data_cleaning_file = NULL
+  idloc = 2
+  do.part3.pdf = FALSE
+  sleepwindowType = "SPT"
+  do.sibreport = TRUE
+  excludefirstlast = FALSE
+  LUX_cal_constant = NULL
+  LUX_cal_exponent = NULL
+  desiredtz = "Europe/London"
+  part6Window = c("O1", "O-1")
+  windowsizes = c(5,900,3600)
+  visualreport = TRUE
+}
+
+if (study == "Whitehall") {
+  timewindow = "WW"
+  strategy = 2
+  maxdur = 9
+  datadir = local_datadir
+  outputdir = local_outputdir
+  studyname = "Whitehall"
+  data_cleaning_file = NULL
+  idloc = 2
+  visualreport = TRUE
+  do.part3.pdf = TRUE
+  sleepwindowType = "SPT"
+  do.sibreport = TRUE
+  excludefirstlast = TRUE
+  LUX_cal_constant = 1.173
+  LUX_cal_exponent = 0.0193
+  part6Window = c("W1", "end")
+  desiredtz = "Europe/London"
+  windowsizes = c(5,900,3600)
+  if(sleeplog==TRUE){
+    loglocation = loglocation
+    coln1 = 3 # after I include the date, there is one more column
+    if(filter==TRUE){
+      qwindow = loglocation # Only if you actually have a diary
+      qwindow_dateformat = "%d/%m/%Y" # to specify the date format in the sleepdiary
+      nonwearFiltermaxHours = 3
+      nonwearFilterWindow =  NULL
+    }else{
+      qwindow = c()
+      qwindow_dateformat = NULL
+      nonwearFiltermaxHours = 0
+      nonwearFilterWindow = NULL
+    }
+  }else{
+    loglocation = NULL
+    coln1 = NULL 
+  }
+}
+qwindow = c(0,24) 
+source(verisensedir)
+myfun = list(FUN = verisense_count_steps,
+             parameters = c(4, 4, 20, -1.0, 4, 4, 0.01, 1.25), # updated based on Rowlands et al Stepping up with GGIR 2022
+             expected_sample_rate = 15,
+             expected_unit = "g",
+             colnames = c("step_count"),
+             outputres = 1,
+             minlength = 1,
+             outputtype = "numeric",
+             aggfunction = sum,
+             timestamp = F,
+             reporttype = "event")
+
+
+# Run GGIR 
+GGIR(#-------------------------------
+     # General parameters
+     #-------------------------------
+     myfun = myfun,
+     mode = mode,
+     datadir = datadir,
+     outputdir = outputdir,
+     studyname = studyname,
+     do.report = do.report,
+     f0 = f0,
+     f1 = f1,
+     overwrite = overwrite,
+     do.parallel = do.parallel,
+     maxNcores = maxNcores,
+     idloc = idloc,
+     print.filename = TRUE,
+     storefolderstructure = TRUE,
+     data_cleaning_file = data_cleaning_file,
+     desiredtz = desiredtz, 
+     #-------------------------------
+     # Part 1 parameters:
+     #-------------------------------
+     #windowsizes = c(5, 900, 3600),
+     windowsizes = windowsizes,
+     do.enmo = TRUE,
+     do.anglez = TRUE,
+     chunksize = 1,
+     printsummary = TRUE,
+     #-------------------------------
+     # Part 2 parameters:
+     #-------------------------------
+     strategy = strategy,
+     maxdur = maxdur,
+     winhr = c(5, 10),
+     ilevels = c(seq(0, 400, by = 50), 8000),
+     iglevels = TRUE,
+     mvpathreshold = c(100, 120),
+     IVIS_windowsize_minutes = 60,
+     IVIS.activity.metric = 2,
+     do.part2.pdf = do.part2.pdf,
+     qwindow = qwindow,
+     #-------------------------------
+     # Part 3 parameters:
+     #-------------------------------
+     do.part3.pdf = do.part3.pdf, 
+     #-------------------------------
+     # Part 4 parameters:
+     #-------------------------------
+     excludefirstlast = excludefirstlast, # Exclude first and last night for sleep analysis?
+     def.noc.sleep = 1,
+     loglocation = loglocation,
+     outliers.only = TRUE,
+     criterror = 4,
+     sleepwindowType = sleepwindowType,
+     colid = 1,
+     coln1 = coln1,
+     qwindow_dateformat = qwindow_dateformat,
+     nonwearFiltermaxHours = nonwearFiltermaxHours,
+     nonwearFilterWindow = nonwearFilterWindow,
+     #-------------------------------
+     # Part 5 parameters:
+     #-------------------------------
+     # Threshold for intensity levels
+     threshold.lig = c(40, 45),
+     threshold.mod = c(100, 110),
+     threshold.vig = c(400),
+     boutcriter = 0.8,
+     boutcriter.in = 1,
+     boutcriter.lig = 1,
+     boutcriter.mvpa = 1,
+     # duration of bouts to be calculated
+     boutdur.in = c(10, 30), 
+     boutdur.lig = c(10),
+     boutdur.mvpa = c(10),
+     timewindow = timewindow,
+     # saving output
+     do.sibreport = do.sibreport,
+     save_ms5rawlevels = TRUE,
+     save_ms5raw_format = "RData",
+     save_ms5raw_without_invalid = TRUE, # we corrected this, see github AGAIN save store memory https://wadpac.github.io/GGIR/articles/chapter13_CircadianRhythm.html
+     includedaycrit.part5 = 2/3,
+     includenightcrit.part5 = 2/3,
+     minimum_MM_length.part5 = 23,
+     frag.metrics = "all",
+     LUX_cal_constant = LUX_cal_constant,
+     LUX_cal_exponent = LUX_cal_exponent,
+     LUX_day_segments = c(4, 8, 12, 16, 20, 24),
+     part5_agg2_60seconds = TRUE,
+     cosinor = TRUE,
+     possible_nap_window = NULL,
+     possible_nap_dur = NULL,
+     #-------------------------------
+     # Part 6 parameters:
+     #-------------------------------
+     part6_threshold_combi = "40_100_400",
+     part6CR = TRUE,
+     includecrit.part6 = c(2/3, 2/3),
+     part6DFA = part6DFA,
+     part6Window = part6Window,
+     #-----------------------------------
+     # pdf report generation
+     dofirstpage = FALSE,
+     visualreport = visualreport,
+     visualreport_without_invalid = FALSE, 
+     #-----------------------------------
+     # New visualisation tools
+     old_visualreport = FALSE, # To indicate whether the old visualreport should still be generated (TRUE).
+     visualreport_hrsPerRow = 36, # Number of hours to display per plot, e.g. 48 would mean generating a double plot, while 24 would be in line with the old approach.
+     visualreport_focus = "day", # Whether focus of the visualisation is on the day (noon) or on the night (set "night"). When visualreport_hrsPerRow is 36 or 48 this of course does not make much of a difference.
+     visualreport_validcrit = 0, # Minimum fraction of data per plot that is expected to be valid, so if you want to skip rows with less than 20% valid data then use 0.2
+     #part6_threshold_combi = "20_70_150" # To specify the threshold combination (inactive, light, and moderate) used in part 5 for which you would like to generate a visual report.
+     dec_reports = ".", #for EU (France)
+     sep_reports = ";" #for EU (France)
+)
+# ---------------------------------------------------------------------------- #
+
+
+
