@@ -1,0 +1,205 @@
+# Generic script for using GGIR in the ERC project
+#=====================================================================================
+# rm(list=ls())
+# graphics.off()
+
+user = "Vincent"
+workPath = "D:/Dropbox/Work/sharedfolder/projects/ERC_Paris"
+# Parameters that are user specific:
+if (user == "Vincent") {
+  # study  = "UKBiobank"
+  # study  = "Clinic"
+  study  = "Whitehall"
+  if (study == "Whitehall") {
+    # Full data with part 1 process with GGIR 3.0-0:
+    local_datadir = paste0(workPath, "/Whitehall/whitehall300")
+    local_outputdir = paste0(workPath, "/Whitehall")
+    loglocation = paste0(workPath, "/Whitehall/output_whitehall/sleeplog_corrected_v9_filteronly.csv")
+    qwindow = paste0(workPath, "/Whitehall/output_whitehall/sleeplog_advancedformat_v9_filteronly.csv")
+    data_cleaning_file = paste0(workPath, "/Whitehall/output_whitehall/data_cleaning_file_v8.csv")
+  } else if (study == "Clinic") {
+  } else if (study == "UKBiobank") {
+  }
+  verisensedir = "D:/Code/erc-accelerometry/verisense_count_steps.R"
+  mode = 6
+  do.parallel = TRUE
+  overwrite = FALSE
+  do.part2.pdf = FALSE
+  part6DFA = TRUE
+  f0 = 1
+  f1 = 0
+  do.report = c(6)
+  maxNcores = 12
+
+  # dec_reports = "." #for US/UK
+  # sep_reports = "," #for US/UK 
+  dec_reports = "." # for France
+  sep_reports = ";" # for France
+  fns = dir("D:/Code/GGIR/R", full.names = TRUE) # creating list of filenames of scriptfiles to load
+  fns = fns[grep(pattern = "sysdata", x = fns, invert = TRUE)]
+  for (i in fns) source(file = i, local = FALSE)
+} else if (user == "Ian") {
+}
+
+
+# Parameters that are study specific
+if (study == "UKBiobank") {
+} else if (study == "Whitehall") {
+  timewindow = "WW"
+  strategy = 2
+  maxdur = 9
+  datadir = local_datadir
+  outputdir = local_outputdir
+  studyname = "whitehall"
+  loglocation = loglocation
+  data_cleaning_file = data_cleaning_file
+  idloc = 2
+  coln1 = 2
+  visualreport = TRUE
+  do.part3.pdf = FALSE
+  sleepwindowType = "SPT"
+  do.sibreport = TRUE
+  excludefirstlast = TRUE
+  LUX_cal_constant = 1.173
+  LUX_cal_exponent = 0.0193
+  part6Window = c("W1", "end")
+  desiredtz = "Europe/London"
+  qwindow = qwindow
+  nonwearFiltermaxHours = 3
+  possible_nap_window = NULL
+  possible_nap_dur = NULL
+} else if (study == "Clinic") {
+}
+
+# Load step detection function:
+source(verisensedir)
+myfun = list(FUN = verisense_count_steps,
+             parameters = c(4, 4, 20, -1.0, 4, 4, 0.01, 1.25), # updated based on Rowlands et al Stepping up with GGIR 2022
+             expected_sample_rate = 15,
+             expected_unit = "g",
+             colnames = c("step_count"),
+             outputres = 1,
+             minlength = 1,
+             outputtype = "numeric",
+             aggfunction = sum,
+             timestamp = F,
+             reporttype = "event")
+
+t1 = Sys.time()
+GGIR(#-------------------------------
+     # General parameters
+     #-------------------------------
+     myfun = myfun,
+     mode = mode,
+     datadir = datadir,
+     outputdir = outputdir,
+     studyname = studyname,
+     do.report = do.report,
+     f0 = f0,
+     f1 = f1,
+     overwrite = overwrite,
+     do.parallel = do.parallel,
+     maxNcores = maxNcores,
+     idloc = idloc,
+     print.filename = TRUE,
+     storefolderstructure = TRUE,
+     data_cleaning_file = data_cleaning_file,
+     desiredtz = desiredtz, 
+     #-------------------------------
+     # Part 1 parameters:
+     #-------------------------------
+     windowsizes = c(5, 900, 3600),
+     do.enmo = TRUE,
+     do.anglez = TRUE,
+     chunksize = 1,
+     printsummary = TRUE,
+     nonwear_range_threshold = 150,
+     nonwear_approach = "2023",
+     #-------------------------------
+     # Part 2 parameters:
+     #-------------------------------
+     strategy = strategy,
+     maxdur = maxdur,
+     winhr = c(5, 10),
+     ilevels = c(seq(0, 400, by = 50), 8000),
+     iglevels = TRUE,
+     mvpathreshold = c(100, 120),
+     IVIS_windowsize_minutes = 60,
+     IVIS.activity.metric = 2,
+     do.part2.pdf = do.part2.pdf,
+     qwindow = qwindow,
+     qwindow_dateformat = "%d/%m/%Y",
+     nonwearFiltermaxHours = nonwearFiltermaxHours,
+     nonwearFilterWindow = NULL,
+     #-------------------------------
+     # Part 3 parameters:
+     #-------------------------------
+     do.part3.pdf = do.part3.pdf, 
+     
+     #-------------------------------
+     # Part 4 parameters:
+     #-------------------------------
+     excludefirstlast = excludefirstlast, # Exclude first and last night for sleep analysis?
+     def.noc.sleep = 1,
+     loglocation = loglocation,
+     outliers.only = FALSE,
+     criterror = 0,
+     sleepwindowType = sleepwindowType,
+     colid = 1,
+     coln1 = coln1,
+     relyonguider = FALSE,
+     sib_must_fully_overlap_with_TimeInBed = c(FALSE, FALSE),
+     #-------------------------------
+     # Part 5 parameters:
+     #-------------------------------
+     # Threshold for intensity levels
+     threshold.lig = c(40, 45),
+     threshold.mod = c(100, 110),
+     threshold.vig = c(400),
+     boutcriter = 0.8,
+     boutcriter.in = 1,
+     boutcriter.lig = 1,
+     boutcriter.mvpa = 1,
+     # duration of bouts to be calculated
+     boutdur.in = c(10, 30),
+     boutdur.lig = c(10),
+     boutdur.mvpa = c(10),
+     timewindow = timewindow,
+     # saving output
+     do.sibreport = do.sibreport,
+     save_ms5rawlevels = TRUE,
+     save_ms5raw_format = "RData",
+     save_ms5raw_without_invalid = FALSE,
+     includedaycrit.part5 = 2/3,
+     includenightcrit.part5 = 2/3,
+     minimum_MM_length.part5 = 23,
+     frag.metrics = "all",
+     LUX_cal_constant = LUX_cal_constant,
+     LUX_cal_exponent = LUX_cal_exponent,
+     LUX_day_segments = c(4, 8, 12, 16, 20, 24),
+     part5_agg2_60seconds = TRUE,
+     cosinor = TRUE,
+     possible_nap_window = possible_nap_window,
+     possible_nap_dur = possible_nap_dur,
+     method_research_vars = NULL, #"nap",
+     require_complete_lastnight_part5 = FALSE,
+     #-------------------------------
+     # Part 6 parameters:
+     #-------------------------------
+     part6_threshold_combi = "40_100_400",
+     part6CR = TRUE,
+     includecrit.part6 = c(2/3, 2/3),
+     part6DFA = part6DFA,
+     part6Window = part6Window,
+     #-----------------------------------
+     # pdf report generation
+     dofirstpage = FALSE,
+     dec_reports = dec_reports,
+     sep_reports = sep_reports,
+     visualreport = visualreport,
+     visualreport_without_invalid = FALSE,
+     visualreport_hrsPerRow = 36,
+     old_visualreport = FALSE,
+     clevels = c(30, 90, 120))
+t2 = Sys.time()
+print(t2 - t1)
