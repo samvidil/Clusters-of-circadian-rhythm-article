@@ -1,0 +1,425 @@
+# The next code can be use to reproduce the tables and figures of the article: 
+# "Circadian rhythm profiles derived from accelerometer measures of the sleep-wake cycle in 2 cohort studies"
+# We provide a code for which we already have the data about metrics and covariates ready. For some of the covariates we do some mananging to provide the good format in the analyses.
+
+
+# Librairies
+# If you do not have the librairy, do: install.packages("name_package_for_library")
+library(haven)
+library(corrplot)
+library(tidyverse)
+library(nnet)
+library(questionr)
+library(factoextra)
+library(parallelDist)
+library(dplyr)
+library(lubridate)
+library(multcomp)
+library(cluster)
+library(clusterSim)
+library(parallelDist)
+
+
+#####################
+### Main analyses ###
+#####################
+
+
+### Figure 1: Correlation matrix of 36 metrics reflecting circadian rhythm dimensions (rest-activity rhythm, daytime activity, sleep, and chronotype) ###
+
+# Loading the data with the 36 metrics and the factors needed
+Data <- read_dta("~/Coupure 180625/data_final_ukbb_250901.dta")
+Data_F1 <- Data[, 141:176] # selection of metrics needed
+corrplot(cor(Data_F1[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), 
+         type = "lower",                                                   # To get the figure at bottom left (can be 'full' or 'upper')
+         method = "square",                                                # To get the form square inside boxes (can be 'circle' or other)
+         tl.pos = "l")                                                     # To remove the names on the diagonal
+
+# To save the plot
+svg("~/Coupure 180625/corr_UKBB.svg")
+corrplot(cor(Data_F1[, c(16:21, 1:15, 27:36, 22:26)], method = "pearson"), type = "lower", method = "square", tl.pos = "l", tl.col = "black", tl.cex = 0.7) 
+dev.off()
+
+
+### Figure 3: Standardized mean scores on 36 metrics as a function of nine circadian rhythm clusters in the UK Biobank accelerometer sub-study ###
+
+# Step 1: PCA
+Data_F2 <- Data[, c(141:176)]
+# Standardization
+Data_F2_Z <- scale(Data_F2)
+# PCA
+PCA_results <- prcomp(Data_F2_Z)
+data_dimensions <- data.frame(PCA_results$x[, 1:8])
+
+# Step 2: k-means
+# K-means clustering
+CL <- list()
+for(i in 4:12){
+  CL[[i]] <-  kmeans(data_dimensions, 
+                     centers = i,           # Number of k cluster tested
+                     algorithm = "Lloyd",
+                     nstart = 5000,         # Number of different random starts tested
+                     iter.max = 10000)      # Number of iterations maximum
+}
+
+# Visualisation
+# Creation of the variable cluster in the correct order
+Data$c9_order <- (Data$c9 == 1) + 2*(Data$c9 == 8) + 3*(Data$c9 == 4) + 4*(Data$c9 == 3) + 5*(Data$c9 == 6) + 6*(Data$c9 == 2) + 7*(Data$c9 == 7) + 8*(Data$c9 == 9) + 9*(Data$c9 == 5)
+
+T9 <- data.frame(scale(Data_F1), c9 = Data$c9_order) %>%
+  group_by(c9) %>%
+  summarise_all(funs(mean))
+T9_longer <- T9 %>% pivot_longer(!c9, names_to = "Metrics", values_to = "Z_score")
+T9_longer <- T9_longer %>% 
+  mutate(lab = "NULL") %>%
+  mutate(lab = ifelse(c9 == 1, "Cluster 1\n\nRAR ++\nPA ++\n\n\nN = 5,793", lab), 
+         lab = ifelse(c9 == 2, "Cluster 2\n\nRAR +\nPA +\nSleep -\n\nN = 6,845", lab),
+         lab = ifelse(c9 == 3, "Cluster 3\n\nRAR +\nLIPA +\nSleep +\n\nN = 9,411", lab),
+         lab = ifelse(c9 == 4, "Cluster 4\n\n\nMVPA ++\n\n\nN = 7,143", lab),
+         lab = ifelse(c9 == 5, "Cluster 5\n\nRAR -\nChronotype --\n\n\nN = 5,957", lab),
+         lab = ifelse(c9 == 6, "Cluster 6\n\nRAR -\nPA -\nSleep +\n\nN = 8,871", lab),
+         lab = ifelse(c9 == 7, "Cluster 7\n\nRAR -\nPA -\nSleep --\n\nN = 5,303", lab),
+         lab = ifelse(c9 == 8, "Cluster 8\n\nRAR -\nPA +\nRestless sleep\n\nN = 1,859", lab),
+         lab = ifelse(c9 == 9, "Cluster 9\n\nRAR --\nPA --\nChronotype -\n\nN = 3,813", lab)) %>%
+  mutate(Dimension = "NULL") %>%
+  mutate(Dimension = ifelse(Metrics == "sbduration" | Metrics == "lipaduration" | Metrics == "mvpaduration" | Metrics == "numberofboutsinsb" | Metrics == "numberofboutsinlipa" | Metrics == "numberofboutsinmvpa" | Metrics == "meandurationsbbouts" | Metrics == "meandurationlipabouts" | Metrics == "meandurationmvpabouts" | Metrics == "m10value" | Metrics == "tpard" | Metrics == "tprad" | Metrics == "meanaccelerationduringwaking" | Metrics == "igintercept" | Metrics == "igslope",
+                            "Daytime\nActivity", Dimension),
+         Dimension = ifelse(Metrics == "is" | Metrics == "iv" | Metrics == "cosinormesor" | Metrics == "cosinoramplitude"| Metrics == "relativeamplitude" | Metrics == "cosinorr2",
+                            "RAR", Dimension),
+         Dimension = ifelse(Metrics == "sleeponset" | Metrics == "sleepoffset" | Metrics == "m10timing" | Metrics == "l5timing" | Metrics == "cosinoracrotime", 
+                            "Chronotype", Dimension),
+         Dimension = ifelse(Metrics == "durationsleep" | Metrics == "sleepefficiency" | Metrics == "accelerationduringsleep" | Metrics == "numbersleepbouts" | Metrics == "durationsleepbouts" | Metrics == "l5value" | Metrics == "tpwsn" | Metrics == "tpswn" | Metrics == "durationwake" | Metrics == "durationwakebouts",
+                            "Sleep", Dimension)) %>%
+  mutate(Dimension = factor(Dimension, levels = c("RAR", "Daytime\nActivity", "Sleep", "Chronotype"))) %>%
+  mutate(Varname2 = "NULL") %>%
+  mutate(Varname2 = ifelse(Metrics == "meanaccelerationduringwaking", "Acceleration during waking", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "lipaduration", "LIPA duration", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "mvpaduration", "MVPA duration", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "numberofboutsinlipa", "Number of LIPA bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "numberofboutsinmvpa", "Number of MVPA bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "meandurationlipabouts", "Mean duration of LIPA bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "meandurationmvpabouts", "Mean duration of MVPA bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "m10value", "M10 mean acceleration", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "relativeamplitude", "Relative Amplitude", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "tprad", "TPra,d", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "tpard", "TPar,d", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "sbduration", "SB duration", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "numberofboutsinsb", "Number of SB bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "meandurationsbbouts", "Mean duration of SB bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "igintercept", "IG intercept", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "igslope", "IG slope", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "iv", "Intradaily variability (IV)", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "is", "Interdaily stability (IS)", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "sleeponset", "Sleep onset", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "sleepoffset", "Waking time", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "m10timing", "M10 start", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "l5timing", "L5 start", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "cosinoracrotime", "Cosinor acrotime", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "cosinormesor", "Cosinor mesor", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "cosinoramplitude", "Cosinor amplitude", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "cosinorr2", "Cosinor R2", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "durationsleep", "Sleep duration", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "sleepefficiency", "Sleep efficiency", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "tpwsn", "TPws,n", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "durationsleepbouts", "Mean duration of sleep bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "numbersleepbouts", "Number of sleep bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "accelerationduringsleep", "Mean acceleration during sleep", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "l5value", "L5 mean acceleration", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "durationwake", "WASO", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "durationwakebouts", "Mean duration of wake bouts", Varname2)) %>%
+  mutate(Varname2 = ifelse(Metrics == "tpswn", "TPsw,n", Varname2)) %>%
+  mutate(Varname2 = factor(Varname2, levels = rev(c("SB duration", "Number of SB bouts", "Mean duration of SB bouts", "TPar,d", "LIPA duration", "MVPA duration", 
+                                                    "Number of LIPA bouts", "Number of MVPA bouts", "Mean duration of LIPA bouts", "Mean duration of MVPA bouts", "TPra,d", 
+                                                    "M10 mean acceleration", "Acceleration during waking", "IG intercept", "IG slope", 
+                                                    "Relative Amplitude", "Cosinor mesor","Cosinor amplitude", "Cosinor R2", "Interdaily stability (IS)", "Intradaily variability (IV)", 
+                                                    "Sleep duration", "Sleep efficiency", "Mean duration of sleep bouts", "TPws,n", "Mean acceleration during sleep", 
+                                                    "Number of sleep bouts", "L5 mean acceleration", "TPsw,n", "WASO", "Mean duration of wake bouts",
+                                                    "Sleep onset", "Waking time", "M10 start", "L5 start", "Cosinor acrotime"))))
+
+(cluster_UKBB <- ggplot(data = T9_longer, aes(y = Varname2, x = Z_score, fill = Dimension)) +
+  facet_grid(Dimension ~ lab, scales = "free", space = "free") + 
+  theme_bw() +
+  theme(panel.grid = element_blank(), legend.position = "none", strip.text.y = element_text(angle = 0), axis.text = element_text(size = 15),
+        axis.title = element_text(size = 20), strip.text = element_text(size = 15)) +
+  labs(x = "z-score", y = "")  +
+  geom_vline(xintercept = 0, color = "grey") +
+  geom_vline(xintercept = c(-1, 1), color = "grey", lty = 2) +
+  geom_vline(xintercept = c(-2, 2), color = "grey", lty = 3) +
+  geom_col(position = position_dodge2())  +
+  scale_fill_manual(values = 	c("#586e75", "#839496", "#D2D2D2", "#657b83")))
+
+#ggsave("path/figure_2.svg", cluster_UKBB, width = 500, height = 300, units = "mm")
+# To save the figure
+
+
+### Table 2: Characteristics of participants as a function of nine circadian rhythm clusters in the UK Biobank accelerometer sub-study ###
+# Covariates managing, specific to our covariates
+# Season
+Data$SEASON <- 0
+for(i in 1:length(Data$doacc)){
+  if((Data$doacc[i] >= "2013-12-21" & Data$doacc[i] < "2014-03-20") | (Data$doacc[i] >= "2014-12-22" & Data$doacc[i] < "2015-03-20") | (Data$doacc[i] >= "2015-12-22")) Data$SEASON[i] <- "Winter"
+  if((Data$doacc[i] < "2013-06-21") | (Data$doacc[i] >= "2014-03-20" & Data$doacc[i] < "2014-06-21") | (Data$doacc[i] >= "2015-03-20" & Data$doacc[i] < "2015-06-21")) Data$SEASON[i] <- "Spring"
+  if((Data$doacc[i] >= "2013-06-21" & Data$doacc[i] < "2013-09-22") | (Data$doacc[i] >= "2014-06-21" & Data$doacc[i] < "2014-09-23") | (Data$doacc[i] >= "2015-06-21" & Data$doacc[i] < "2015-09-23")) Data$SEASON[i] <- "Summer"
+  if((Data$doacc[i] >= "2013-09-22" & Data$doacc[i] < "2013-12-21") | (Data$doacc[i] >= "2014-09-23" & Data$doacc[i] < "2014-12-22") | (Data$doacc[i] >= "2015-09-23" & Data$doacc[i] < "2015-12-22")) Data$SEASON[i] <- "Autumn"
+}
+
+### LIGHT
+# Summer
+for(i in 1:length(Data$pc1)){
+  if(Data$light_summer[i] > 16) Data$light_summer[i] <- 16
+  if(Data$light_summer[i] == -10) Data$light_summer[i] <- 0.5
+  if(Data$light_summer[i] == -3 | Data$light_summer[i] == -1) Data$light_summer[i] <- NA
+}
+Data$light_summer <- (Data$light_summer * 100) / 16
+# Winter
+for(i in 1:length(Data$pc1)){
+  if(Data$light_winter[i] > 16) Data$light_winter[i] <- 16
+  if(Data$light_winter[i] == -10) Data$light_winter[i] <- 0.5
+  if(Data$light_winter[i] == -3 | Data$light_winter[i] == -1) Data$light_winter[i] <- NA
+}
+Data$light_winter <- (Data$light_winter * 100) / 16
+# Unification
+Data$LIGHT <- NA
+for(i in 1:length(Data$pc1)){
+  if(Data$SEASON[i] == "Winter" | Data$SEASON[i] == "Autumn") Data$LIGHT[i] <- Data$light_winter[i]
+  if(Data$SEASON[i] == "Summer" | Data$SEASON[i] == "Spring") Data$LIGHT[i] <- Data$light_summer[i]
+}
+###
+
+### Work
+Data$WORK <- 0
+for(i in 1:length(Data$n_eid)){
+  if(Data$work[i] == 1) Data$WORK[i] <- 1
+  if(Data$work[i] == -7 | Data$work[i] == -3 | is.na(Data$work[i]) == TRUE) Data$WORK[i] <- NA
+}
+
+### Age accelerometer
+Data$age_acc <- (Data$doacc - Data$dob) / 365.25
+
+Data_cov <- Data[(is.na(Data$LIGHT) == FALSE) & (is.na(Data$WORK) == FALSE) & (is.na(Data$smoking) == FALSE) & (is.na(Data$livingalone) == FALSE) & is.na(Data$TDI) == FALSE, ] # 51,507
+
+
+# For categorical variables (example for sex)
+Data_cov %>%
+  group_by(c9_order, sex) %>%
+  summarise(N = n(), .groups = "drop") %>%
+  group_by(c9_order) %>%
+  mutate(Percentage = round(100 * N / sum(N), 1)) %>%
+  arrange(c9_order, sex)
+
+# For continuous variables (example for age)
+Data_cov %>%
+  group_by(c9_order) %>%
+  summarise(
+    moyenne = mean(age_acc, na.rm = TRUE),
+    ecart_type = sd(age_acc, na.rm = TRUE),
+    n = n()
+  )
+
+
+### Table 4: Association (Odds Ratio (95% CI)) of socio-demographic, seasonal, behavioural, and health-related factors with circadian rhythm clusters in the UK Biobank accelerometer sub-study ###
+
+# Covariates managing (again specific)
+Data_cov$age2     <- Data_cov$age_acc / 5
+Data_cov$BMI5     <- Data_cov$bmi / 5
+Data_cov$LIGHT2   <- scale(Data_cov$LIGHT)
+Data_cov$smoking2 <- as.factor(Data_cov$smoking)
+Data_cov$TDI_ter <- (Data_cov$TDI < quantile(Data_cov$TDI, c(1/3, 2/3))[1]) +
+  2*(Data_cov$TDI >= quantile(Data_cov$TDI, c(1/3, 2/3))[1] & Data_cov$TDI < quantile(Data_cov$TDI, c(1/3, 2/3))[2]) +
+  3*(Data_cov$TDI >= quantile(Data_cov$TDI, c(1/3, 2/3))[2])
+
+
+Data_cov$c9_order <- relevel(as.factor(Data_cov$c9_order), ref = 3)
+res_ukbb <- multinom(c9_order ~ age2 + as.character(sex) + as.character(ethn_ds) + as.character(edu<1) + as.character(livingalone) + as.character(TDI_ter) + as.character(WORK) + SEASON +
+                       smoking2 + as.character(alcohol_3cat) + as.character(fruitveg<2) + LIGHT2 +
+                       BMI5 + as.character(DIABETES_p) + as.character(HYPTEN_p) + as.character(HYPLIP) +
+                       as.character(NBCHDI>=1) + as.character(CNS), data = Data_cov, maxit = 200)
+tab_res_ukbb <- data.frame(odds.ratio(res_ukbb))
+round(tab_res_ukbb, 3)
+
+### C-index analyses ###
+Data_allRAR_ukbb <- scale(Data[, c(152, 156:158, 160:161, 164:166, 173)])
+# PCA
+PCA_results_allRAR_ukbb <- prcomp(Data_allRAR_ukbb)
+# Table S2
+round(get_eigenvalue(PCA_results_allRAR_ukbb), 4)
+# Table S3
+round(PCA_results_allRAR_ukbb$rotation, 2)
+# Values for dimensions retained
+Data$pc1_allRAR <- PCA_results_allRAR_ukbb$x[, 1] 
+Data$pc2_allRAR <- PCA_results_allRAR_ukbb$x[, 2] 
+Data$pc3_allRAR <- PCA_results_allRAR_ukbb$x[, 3] 
+# Creation of mortality variables
+# We removed the mortality onformation with a date higher than 30-11-2022 because we don't have the information for all the individuals (we use recommanded date of censure)
+Data$mortality_date[is.na(Data$mortality_date) == TRUE] <- "2022-11-30"
+Data$mort[Data$mortality_date == "2022-12-01" | Data$mortality_date == "2022-12-02" | Data$mortality_date == "2022-12-16"] <- 0
+Data$mortality_date[Data$mortality_date == "2022-12-01" | Data$mortality_date == "2022-12-02" | Data$mortality_date == "2022-12-16"] <- "2022-11-30"
+Data$mort_time <- (Data$mortality_date - Data$doacc) / 365.25
+
+# Cox model
+mod1_mort <- coxph(Surv(mort_time, mort) ~ pc1_allRAR + pc2_allRAR + pc3_allRAR, data = Data)
+cox.zph(mod1_mort) 
+summary(mod1_mort)
+
+mod2_mort <- coxph(Surv(mort_time, mort) ~ pc1 + pc2 + pc3 + pc4 + pc5 + pc6 + pc7 + pc8, data = Data)
+cox.zph(mod2_mort) 
+summary(mod2_mort)
+
+# Confidence interval
+mod1_mort$concordance[6] - 1.96*(mod1_mort$concordance[7])
+mod1_mort$concordance[6] + 1.96*(mod1_mort$concordance[7])
+
+mod2_mort$concordance[6] - 1.96*(mod2_mort$concordance[7])
+mod2_mort$concordance[6] + 1.96*(mod2_mort$concordance[7])
+
+# Test for the difference
+score1_ukbb <- predict(mod1_mort, type = "lp")
+score2_ukbb <- predict(mod2_mort, type = "lp")
+compareC_ukbb <- compareC(timeX   = Data$mort_time,
+                          statusX = Data$mort,
+                          scoreY  = score1_ukbb,
+                          scoreZ  = score2_ukbb)
+
+#####################
+### Supplementary ###
+#####################
+
+### Table S4: Principal component analyses: selection of the retained principal components ###
+
+round(get_eigenvalue(PCA_results)[1:10, ], 2)   
+
+
+### Table S6: Factors loadings of the eight principal components retained in the analysis in the UK Biobank accelerometer sub-study ###
+
+data.frame(round(PCA_results$rotation[c(16:21, 1:15, 27:36, 22:26), 1:8], 2))
+
+
+### Table S8: Unstandardized mean (standard deviation) scores and ranking of each metric across the circadian rhythm clusters in the UK Biobank accelerometer sub-study ###
+
+# Mean and SD
+Data %>%
+  group_by(c9_order) %>%
+  summarise(
+    moyenne = mean(metric, na.rm = TRUE),
+    ecart_type = sd(metric, na.rm = TRUE),
+    n = n()
+  )
+# Test
+Data$c9_order_f <- as.factor(Data$c9_order)
+
+# Tests for each groups
+anova.var <- aov(sbduration ~ c9_order_f, data = Data)
+p.value <- summary(anova.var)[[1]][[5]][1]                       
+tukey.var <- glht(anova.var, linfct = mcp(c9_order_f = "Tukey"))
+cld.var <- cld(tukey.var)
+ranking <- data.frame(Clusters = levels(Data$c9_order_f), Rank = cld.var$mcletters$Letters)
+ranking  # Be carefull, the letters give the information about significant differences between cluster but not the order rank, look at the mean value in each cluster to have the order rank.
+
+
+### Table S9: Subjective chronotype preference prevalence in the identified circadian rhythm clusters in the UK Biobank accelerometer sub-study ###
+
+# Missing data 
+table(Data$chronotype_sub)
+# Table for all population
+table(Data$chronotype_sub[Data$chronotype_sub != "Prefer not to answer" & Data$chronotype_sub != "Do not know"])
+prop.table(table(Data$chronotype_sub[Data$chronotype_sub != "Prefer not to answer" & Data$chronotype_sub != "Do not know"]))
+# Table for each cluster
+table(Data$chronotype_sub[Data$chronotype_sub != "Prefer not to answer" & Data$chronotype_sub != "Do not know"], Data$c9_order[Data$chronotype_sub != "Prefer not to answer" & Data_final_ukbb$chronotype_sub != "Do not know"])
+prop.table(table(Data$chronotype_sub[Data$chronotype_sub != "Prefer not to answer" & Data$chronotype_sub != "Do not know"], Data$c9_order[Data$chronotype_sub != "Prefer not to answer" & Data_final_ukbb$chronotype_sub != "Do not know"]), 2)
+
+
+### Table S10: Distribution of shift work in the identified clusters in the UK Biobank accelerometer sub-study.
+table(Data$n_22620_0_0, Data$c9_order, useNA = "always")
+round(prop.table(table(Data$n_22620_0_0, Data$c9_order), 2), 3)
+
+table(Data$n_22620_0_0, Data$WORK, useNA = "always")
+
+# Tests
+chisq.test(table(Data$n_22620_0_0, Data$c9_order))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 1], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 1])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 2], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 2])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 4], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 4])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 5], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 5])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 6], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 6])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 7], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 7])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 8], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 8])))
+chisq.test(table(Data$n_22620_0_0[Data$c9_order == 3 | Data$c9_order == 9], as.character(Data$c9_order[Data$c9_order == 3 | Data$c9_order == 9])))
+
+
+
+### Figure S5: Statistical criteria results for the clustering in UK Biobank ###
+
+# Within cluster sum of sqaures
+n <- dim(data_dimensions)[1]
+wss <- c()
+wss[1] <- (n - 1) * sum(apply(data_dimensions, 2, var))
+wss[2] <- kmeans(data_dimensions, centers = 2, algorithm = "Lloyd", nstart = 5000, iter.max = 10000)
+wss[3] <- kmeans(data_dimensions, centers = 3, algorithm = "Lloyd", nstart = 5000, iter.max = 10000)
+for(k in 4:12){
+  wss[k] <- CL[k]$tot.withinss
+}
+plot(1:12, wss, xlab = expression(italic(k)), ylab = expression(italic(WCSS)), type = "b", lwd = 2)
+
+
+# Silhouette coefficient
+d <- parDist(as.matrix(data_dimensions), method = "euclidean")
+silhouette <- c()
+for(i in 1:9){
+  silhouette[i]  <- summary(silhouette(x = CL[[i+3]],  k = i,  dist = d))$avg.width
+}
+
+plot(x = 1:9, y = silhouette, 
+     lwd = 2, type = "b", 
+     xlab = "k",  ylab = "Silhouette coefficient",
+     xaxt = "n",  
+     yaxt = "n")
+axis(1, at = 1:9, labels = 4:12)
+axis(2, at = seq(0.10, 0.13, by = 0.01))
+
+
+# Davies-Bouldin index
+row.names(data_dimensions) <- NULL
+y_db <- c()
+for(i in 1:9){
+  y_db[i] <- index.DB(as.matrix(data_dimensions), CL[[i+3]],  "centroids")$DB
+}
+plot(x = c(1:9), y_db, 
+     lwd = 2, type = "b",
+     xlab = "k", ylab = "DB", 
+     xaxt = "n")
+axis(1, at = 1:9, labels = 4:12)
+
+
+### Figure S7: Illustration of acceleration signals for typical profiles for the nine clusters identified in the UK Biobank accelerometer sub-study ###
+
+load("~/Signals_UKBB/3699348_90001_0_0.cwa.RData")
+M9_ukbb <- IMP
+
+# As we have the data in the format with 5 seconds epoch, we calculate the mean per minutes.
+df1 <- M1_ukbb$metashort[, c(1, 3)]
+# Convert the date_time column into a datetime object
+df1$date_heure <- ymd_hms(df1$timestamp)
+
+# Create a column with rounded minutes
+df_minute1 <- df1 %>%
+  mutate(minute = floor_date(date_heure, unit = "minute")) %>%
+  group_by(minute) %>%
+  summarise(ENMO_mean = mean(ENMO, na.rm = TRUE))
+
+# df_minute1$minute[106] # To identify time 
+
+# Plot
+plot(1:length(df_minute1$minute), df_minute1$ENMO_mean*1000, ylab="", xlab = " ", main="Cluster name", type = "l", xaxt = "n", 
+     cex.axis = 1.2, cex.lab = 1.4, cex.main = 1.7, ylim = c(0, 600)) 
+abline(h = 40, lty = 2, col = "orange", lwd = 2)                                     # LIPA threshold
+abline(h = 100, lty = 2, col = 'green', lwd = 2)                                     # MVPA threshold
+abline(v = c(seq(826, 10065, by = 1440)), lty = 3, col = "grey", lwd = 1.7)          # Lines for the timing landmarks
+axis(1, c(seq(106, 10065, by = 720)),
+     labels = c("", "00:00", "", "00:00", "", "00:00", "", "00:00", "", "00:00", "", "00:00", "", "00:00"), cex.axis = 0.905)
+
+
+
+
+
+
+
