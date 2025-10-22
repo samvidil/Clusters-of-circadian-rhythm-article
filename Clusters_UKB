@@ -15,9 +15,9 @@ library(parallelDist)
 library(dplyr)
 library(lubridate)
 library(multcomp)
+library(compareC)
 library(cluster)
 library(clusterSim)
-library(parallelDist)
 
 
 #####################
